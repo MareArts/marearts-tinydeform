@@ -16,6 +16,7 @@ Shapes default to RT-DETR at 640x640: levels 80x80, 40x40, 20x20 (8,400 tokens),
 """
 
 import argparse
+import sys
 
 import torch
 import torch.nn.functional as F
@@ -70,6 +71,7 @@ def main():
     ap.add_argument('--heads', type=int, default=8)
     ap.add_argument('--points', type=int, default=4)
     args = ap.parse_args()
+    sys.stdout.reconfigure(encoding='utf-8')  # the table has '—'; a Windows console or pipe is often not UTF-8
     torch.backends.cuda.matmul.allow_tf32 = False
     torch.backends.cudnn.allow_tf32 = False
     dev = torch.device('cuda')

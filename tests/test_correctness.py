@@ -153,10 +153,20 @@ def test_auto_picks_fused_for_few_queries():
     assert choose_mode(many[0], many[1], many[5]) == 'project'
 
 
+def test_auto_limits_follow_the_gpu_generation():
+    get = torch.cuda.get_device_capability
+    try:
+        for cap, table in (((8, 9), marearts_tinydeform.FUSED_LIMIT), ((7, 5), marearts_tinydeform.FUSED_LIMIT_SM75)):
+            torch.cuda.get_device_capability = lambda device=None, cap=cap: cap
+            assert marearts_tinydeform._limits.__wrapped__(0) is table
+    finally:
+        torch.cuda.get_device_capability = get
+
+
 if __name__ == '__main__':
     print('marearts-tinydeform', marearts_tinydeform.__version__, 'CUDA' if CUDA else 'CPU only', torch.__version__)
     for fn in (test_cpu_path_is_reference, test_cuda_float32, test_cuda_half_and_bfloat16,
                test_unaligned_memory_uses_scalar_kernel, test_far_outside_and_empty, test_rejects_bad_input,
-               test_auto_picks_fused_for_few_queries):
+               test_auto_picks_fused_for_few_queries, test_auto_limits_follow_the_gpu_generation):
         fn()
         print('ok', fn.__name__)

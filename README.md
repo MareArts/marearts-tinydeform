@@ -40,7 +40,7 @@ Value projection + deformable attention of one decoder layer, RT-DETR 640×640 s
 
 All 54 measured cases (float32 / float16 / bfloat16, batch 1 / 4 / 8, 50–900 queries) are in [bench/results/rtx4090.md](bench/results/rtx4090.md). In every case the mode `auto` picked was within 10 % of the faster of the two, and no slower than the Deformable-DETR CUDA op. This is one layer, not a whole model: what it saves end to end depends on how much of your model's time the decoder takes.
 
-**Measured on one GPU.** The `auto` thresholds were fitted on the RTX 4090; other GPUs may cross over elsewhere. Run `python bench/bench.py` on yours and pass `mode='fused'` or `mode='project'` if it picks wrong (results from other GPUs are welcome).
+**Measured on two GPUs.** The `auto` thresholds were fitted on the RTX 4090 (used from compute capability 8.0 on) and on an RTX 2080 Super Max-Q laptop GPU under Windows (Turing, used below 8.0), where the crossover comes much earlier in float16 and much later in bfloat16, which has no tensor cores there. RTX 2080 Super results: [bench/results/rtx2080super.md](bench/results/rtx2080super.md). Other GPUs may cross over elsewhere. Run `python bench/bench.py` on yours and pass `mode='fused'` or `mode='project'` if it picks wrong (results from other GPUs are welcome).
 
 ## Install
 

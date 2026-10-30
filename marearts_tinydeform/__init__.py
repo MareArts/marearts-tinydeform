@@ -2,13 +2,15 @@
 # SPDX-License-Identifier: Apache-2.0
 """marearts-tinydeform: value projection + multi-scale deformable attention for DETR-style decoders (CUDA, inference)."""
 
+import functools
+
 import torch
 import torch.nn.functional as F
 
 from .reference import ma_deform_attn_reference
 
 __all__ = ['ma_deform_attn', 'ma_deform_attn_reference', 'choose_mode']
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 
 try:
     from . import _C
@@ -20,9 +22,18 @@ MODES = ('auto', 'fused', 'project')
 # 'fused' costs ~ batch * queries * samples * C (row reads); 'project' costs ~ batch * tokens * C * H * D (a GEMM)
 # plus a fixed part that matters at batch 1. So auto picks 'fused' while
 #     queries * levels * points * 4 / (tokens * head_dim)  <  a + b / batch
-# with (a, b) fitted to the crossovers measured on an RTX 4090 (bench/bench.py --queries 50 ... 900 --batch 1 4 8).
+# with (a, b) fitted to the crossovers measured with bench/bench.py (queries 50 ... 900, batch 1 ... 8):
+# FUSED_LIMIT on an RTX 4090 (sm_89), used from sm_80 on; FUSED_LIMIT_SM75 on an RTX 2080 Super (sm_75), used
+# below sm_80, where the GEMM in 'project' is slower relative to sampling (bfloat16 has no tensor cores there).
 # Other GPUs may cross over elsewhere: pass mode= to override.
 FUSED_LIMIT = {torch.float32: (0.073, 0.032), torch.float16: (0.023, 0.031), torch.bfloat16: (0.023, 0.031)}
+FUSED_LIMIT_SM75 = {torch.float32: (0.068, 0.0), torch.float16: (0.020, 0.0), torch.bfloat16: (0.132, 0.0)}
+
+
+@functools.lru_cache(maxsize=None)
+def _limits(device_index):
+    major, _ = torch.cuda.get_device_capability(device_index)
+    return FUSED_LIMIT if major >= 8 else FUSED_LIMIT_SM75
 
 
 def choose_mode(memory, value_weight, sampling_locations):
@@ -30,7 +41,8 @@ def choose_mode(memory, value_weight, sampling_locations):
     B, N, _ = memory.shape
     _, Q, H, L, P, _ = sampling_locations.shape
     D = value_weight.shape[0] // H
-    a, b = FUSED_LIMIT.get(memory.dtype, FUSED_LIMIT[torch.float16])
+    limits = _limits(memory.get_device()) if memory.is_cuda else FUSED_LIMIT
+    a, b = limits.get(memory.dtype, limits[torch.float16])
     return 'fused' if Q * L * P * 4 / (N * D) < a + b / max(B, 1) else 'project'
 
 
